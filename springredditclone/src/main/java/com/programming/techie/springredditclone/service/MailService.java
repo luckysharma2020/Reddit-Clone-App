@@ -1,6 +1,6 @@
 package com.programming.techie.springredditclone.service;
 
-import com.programming.techie.springredditclone.exception.SpringRedditException;
+import com.programming.techie.springredditclone.exceptions.SpringRedditException;
 import com.programming.techie.springredditclone.model.NotificationEmail;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
