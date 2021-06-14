@@ -1,5 +1,7 @@
 package com.programming.techie.springredditclone.service;
 
+import com.programming.techie.springredditclone.dto.AuthenticationResponse;
+import com.programming.techie.springredditclone.dto.LoginRequest;
 import com.programming.techie.springredditclone.dto.RegisterRequest;
 import com.programming.techie.springredditclone.exceptions.SpringRedditException;
 import com.programming.techie.springredditclone.model.NotificationEmail;
@@ -7,8 +9,13 @@ import com.programming.techie.springredditclone.model.User;
 import com.programming.techie.springredditclone.model.VerificationToken;
 import com.programming.techie.springredditclone.repository.UserRepository;
 import com.programming.techie.springredditclone.repository.VerificationTokenRepository;
+import com.programming.techie.springredditclone.security.JwtProvider;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,9 +33,11 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final VerificationTokenRepository verificationTokenRepository;
+    private final AuthenticationManager authenticationManager;
+    private final JwtProvider jwtProvider;
     private final MailContentBuilder mailContentBuilder;
     private final MailService mailService;
+    private final VerificationTokenRepository verificationTokenRepository;
 
     @Transactional
     public void signup(RegisterRequest registerRequest) {
@@ -40,7 +49,7 @@ public class AuthService {
         user.setEnabled(false);
 
         userRepository.save(user);
-
+        log.info("User Registered Successfully, Sending Authentication Email");
         String token = generateVerificationToken(user);
         String message = mailContentBuilder.build("Thank you for signing up to Spring Reddit, please click on the below url to activate your account : "
                 + ACTIVATION_EMAIL + "/" + token);
@@ -61,10 +70,17 @@ public class AuthService {
         return passwordEncoder.encode(password);
     }
 
+    public AuthenticationResponse login(LoginRequest loginRequest) {
+        Authentication authenticate = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(loginRequest.getUsername(),
+                loginRequest.getPassword()));
+        SecurityContextHolder.getContext().setAuthentication(authenticate);
+        String authenticationToken = jwtProvider.generateToken(authenticate);
+        return new AuthenticationResponse(authenticationToken, loginRequest.getUsername());
+    }
+
     public void verifyAccount(String token) {
         Optional<VerificationToken> verificationTokenOptional = verificationTokenRepository.findByToken(token);
-        verificationTokenOptional.orElseThrow(() -> new SpringRedditException("Invalid Token"));
-        fetchUserAndEnable(verificationTokenOptional.get());
+        fetchUserAndEnable(verificationTokenOptional.orElseThrow(() -> new SpringRedditException("Invalid Token")));
     }
 
     @Transactional
@@ -74,5 +90,4 @@ public class AuthService {
         user.setEnabled(true);
         userRepository.save(user);
     }
-
 }
